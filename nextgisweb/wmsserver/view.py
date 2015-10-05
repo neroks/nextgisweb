@@ -2,6 +2,7 @@
 from __future__ import unicode_literals
 from StringIO import StringIO
 
+import geojson
 from lxml import etree
 from lxml.builder import ElementMaker
 from PIL import Image
@@ -16,6 +17,7 @@ from ..resource import (
     ServiceScope, DataScope)
 from ..spatial_ref_sys import SRS
 from ..geometry import geom_from_wkt
+from ..feature_layer.view import ComplexEncoder
 
 from .model import Service
 from .util import _
@@ -168,6 +170,7 @@ def _get_feature_info(obj, request):
     p_width = int(params.get('WIDTH'))
     p_height = int(params.get('HEIGHT'))
     p_srs = params.get('SRS')
+    p_format = params.get('INFO_FORMAT', 'text/plain')
 
     p_x = float(params.get('X'))
     p_y = float(params.get('Y'))
@@ -208,22 +211,39 @@ def _get_feature_info(obj, request):
         # Ограничим максимальное количество объектов из слоя, таким образом
         # чтобы в итоге в любом случае не превысить их общее количество.
         query.limit(p_feature_count - fcount)
-
-        features = list(query())
+        
+        if p_format == 'application/json':
+            query.srs(srs)
+            query.geom()
+            features = list(query())
+            results.extend(geojson.Feature(geometry=f.geom, properties=f.fields, id=lname) for f in features)
+        elif p_format == 'text/plain':
+            features = list(query())
+            results.append(Bunch(
+                keyname=layer.keyname, display_name=layer.display_name,
+                feature_layer=flayer, features=features))
+        
         fcount += len(features)
-
-        results.append(Bunch(
-            keyname=layer.keyname, display_name=layer.display_name,
-            feature_layer=flayer, features=features))
 
         # Необходимое количество объектов найдено, дальше не ищем
         if fcount >= p_feature_count:
             break
-
-    return Response(render_template(
-        'nextgisweb:wmsserver/template/get_feature_info_html.mako',
-        dict(results=results, resource=obj), request=request
-    ), content_type=b'text/html', charset=b'utf-8')
+        
+    if p_format == 'text/plain':
+        return Response(render_template(
+            'nextgisweb:wmsserver/template/get_feature_info_html.mako',
+            dict(results=results, resource=obj), request=request
+        ), content_type=str(p_format), charset=b'utf-8')
+    elif p_format == 'application/json':
+        geojson_result = geojson.FeatureCollection(results)
+        geojson_result['crs'] = dict(type='name', properties=dict(
+                name='EPSG:%d' % srs.id))
+        
+        return Response(
+            geojson.dumps(geojson_result, ensure_ascii=False, cls=ComplexEncoder),
+            content_type=str(p_format),
+        )
+    return HTTPBadRequest('Invalid format "%s"' % p_format)
 
 
 def _get_legend_graphic(obj, request):
