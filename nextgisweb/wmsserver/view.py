@@ -237,7 +237,7 @@ def _get_feature_info(obj, request):
     elif p_format == 'application/json':
         geojson_result = geojson.FeatureCollection(results)
         geojson_result['crs'] = dict(type='name', properties=dict(
-                name='EPSG:%d' % srs.id))
+                name='urn:ogc:def:crs:EPSG::%s' % srs.id))
         
         return Response(
             geojson.dumps(geojson_result, ensure_ascii=False, cls=ComplexEncoder),
