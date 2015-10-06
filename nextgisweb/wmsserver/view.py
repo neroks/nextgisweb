@@ -198,6 +198,8 @@ def _get_feature_info(obj, request):
     results = list()
     fcount = 0
 
+    fc_bbox = []
+    
     for lname in p_query_layers:
         layer = lmap[lname]
         flayer = layer.resource.feature_layer
@@ -216,8 +218,12 @@ def _get_feature_info(obj, request):
             query.srs(srs)
             query.geom()
             features = list(query())
-            results.extend(geojson.Feature(geometry=f.geom, properties=f.fields, 
-                                           id='%s.%s' % (f.layer.display_name, f.id)) for f in features)
+            for f in features:
+                feature = geojson.Feature(geometry=f.geom, properties=f.fields,
+                                          id='%s.%s' % (f.layer.display_name, f.id))
+                feature['properties']['bbox'] = f.geom.bounds
+                fc_bbox.append(f.geom.bounds)
+                results.append(feature)
         elif p_format == 'text/plain':
             features = list(query())
             results.append(Bunch(
@@ -239,6 +245,14 @@ def _get_feature_info(obj, request):
         geojson_result = geojson.FeatureCollection(results)
         geojson_result['crs'] = dict(type='name', properties=dict(
                 name='urn:ogc:def:crs:EPSG::%s' % srs.id))
+        if fc_bbox:
+            fc_bbox_zip = zip(*fc_bbox)
+            geojson_result['bbox'] = [
+                min(fc_bbox_zip[0]),
+                min(fc_bbox_zip[1]),
+                max(fc_bbox_zip[2]),
+                max(fc_bbox_zip[3]),
+            ]
         
         return Response(
             geojson.dumps(geojson_result, ensure_ascii=False, cls=ComplexEncoder),
