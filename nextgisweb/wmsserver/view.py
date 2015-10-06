@@ -216,7 +216,8 @@ def _get_feature_info(obj, request):
             query.srs(srs)
             query.geom()
             features = list(query())
-            results.extend(geojson.Feature(geometry=f.geom, properties=f.fields, id=lname) for f in features)
+            results.extend(geojson.Feature(geometry=f.geom, properties=f.fields, 
+                                           id='%s.%s' % (f.layer.display_name, f.id)) for f in features)
         elif p_format == 'text/plain':
             features = list(query())
             results.append(Bunch(
