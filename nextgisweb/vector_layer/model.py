@@ -749,6 +749,7 @@ class FeatureQueryBase(object):
                     limit=self._limit,
                     offset=self._offset,
                     order_by=table.columns.id,
+                    use_labels=True,
                 )
                 rows = DBSession.connection().execute(query)
                 for row in rows:
