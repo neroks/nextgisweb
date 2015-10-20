@@ -61,7 +61,6 @@ class ResourceComponent(Component):
     def initialize_db(self):
         adminusr = User.filter_by(keyname='administrator').one()
         admingrp = Group.filter_by(keyname='administrators').one()
-        everyone = User.filter_by(keyname='everyone').one()
 
         try:
             ResourceGroup.filter_by(id=0).one()
@@ -74,13 +73,6 @@ class ResourceComponent(Component):
             obj.acl.append(ACLRule(
                 principal=admingrp,
                 action='allow'))
-
-            obj.acl.append(ACLRule(
-                principal=everyone,
-                scope='resource',
-                permission='delete',
-                action='deny',
-                propagate=False))
 
             obj.persist()
 

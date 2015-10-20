@@ -49,7 +49,8 @@ from ..feature_layer import (
     IFeatureQueryFilter,
     IFeatureQueryFilterBy,
     IFeatureQueryLike,
-    IFeatureQueryIntersects)
+    IFeatureQueryIntersects,
+    IFeatureQueryOrderBy)
 
 from .util import _
 
@@ -229,9 +230,10 @@ class TableInfo(object):
             fld_values = dict()
             for i in range(feature.GetFieldCount()):
                 fld_type = feature.GetFieldDefnRef(i).GetType()
-                fld_value = None
 
-                if fld_type == ogr.OFTInteger:
+                if not feature.IsFieldSet(i):
+                    fld_value = None
+                elif fld_type == ogr.OFTInteger:
                     fld_value = feature.GetFieldAsInteger(i)
                 elif fld_type == ogr.OFTReal:
                     fld_value = feature.GetFieldAsDouble(i)
@@ -378,6 +380,13 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         obj = DBSession.query(tableinfo.model).filter_by(id=feature_id).one()
 
         DBSession.delete(obj)
+
+    def feature_delete_all(self):
+        """Удаляет все записи слоя"""
+        tableinfo = TableInfo.from_layer(self)
+        tableinfo.setup_metadata(tablename=self._tablename)
+
+        DBSession.query(tableinfo.model).delete()
 
 
 def _vector_layer_listeners(table):
@@ -599,7 +608,8 @@ class FeatureQueryBase(object):
         IFeatureQueryFilter,
         IFeatureQueryFilterBy,
         IFeatureQueryLike,
-        IFeatureQueryIntersects)
+        IFeatureQueryIntersects,
+        IFeatureQueryOrderBy)
 
     def __init__(self):
         self._srs = None
@@ -617,6 +627,8 @@ class FeatureQueryBase(object):
         self._filter_by = None
         self._like = None
         self._intersects = None
+
+        self._order_by = None
 
     def srs(self, srs):
         self._srs = srs
@@ -732,6 +744,13 @@ class FeatureQueryBase(object):
                 geomcol, db.func.st_transform(
                     intgeom, self.layer.srs_id)))
 
+        order_criterion = []
+        if self._order_by:
+            for order, colname in self._order_by:
+                order_criterion.append(dict(asc=db.asc, desc=db.desc)[order](
+                    table.columns[tableinfo[colname].key]))
+        order_criterion.append(table.columns.id)
+
         class QueryFeatureSet(FeatureSet):
             fields = selected_fields
             layer = self.layer
@@ -748,7 +767,7 @@ class FeatureQueryBase(object):
                     whereclause=db.and_(*where),
                     limit=self._limit,
                     offset=self._offset,
-                    order_by=table.columns.id,
+                    order_by=order_criterion,
                 )
                 rows = DBSession.connection().execute(query)
                 for row in rows:

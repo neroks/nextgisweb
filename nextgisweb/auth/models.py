@@ -30,6 +30,7 @@ class Principal(Base):
     cls = sa.Column(sa.Unicode(1), nullable=False)
     system = sa.Column(sa.Boolean, nullable=False, default=False)
     display_name = sa.Column(sa.Unicode, nullable=False)
+    description = sa.Column(sa.Unicode)
 
     __mapper_args__ = dict(
         polymorphic_on=cls,
@@ -44,6 +45,8 @@ class User(Principal):
         sa.Integer, sa.Sequence('principal_seq'),
         sa.ForeignKey(Principal.id), primary_key=True)
     keyname = sa.Column(sa.Unicode, unique=True)
+    superuser = sa.Column(sa.Boolean, nullable=False, default=False)
+    disabled = sa.Column(sa.Boolean, nullable=False, default=False)
     password_hash = sa.Column(sa.Unicode)
 
     __mapper_args__ = dict(polymorphic_identity='U')
@@ -98,16 +101,6 @@ class User(Principal):
 
     @property
     def password(self):
-        class PasswordHashValue(object):
-            def __init__(self, value):
-                self._value = value
-
-            def __eq__(self, other):
-                if isinstance(other, basestring):
-                    return sha256_crypt.verify(other, self._value)
-                else:
-                    raise NotImplemented
-
         return PasswordHashValue(self.password_hash)
 
     @password.setter # NOQA
@@ -143,3 +136,21 @@ class Group(Principal):
 
         else:
             return user in self.members
+
+
+class PasswordHashValue(object):
+    """ Класс для автоматического сравнения паролей по хешу """
+    def __init__(self, value):
+        self.value = value
+
+    def __eq__(self, other):
+        if self.value is None:
+            return False
+        elif isinstance(other, basestring):
+            return sha256_crypt.verify(other, self.value)
+        else:
+            raise NotImplemented
+
+
+class UserDisabled(Exception):
+    """ Запрашиваемый пользователь заблокирован """

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals, print_function, absolute_import
+
 from pyramid.authentication import (
     AuthTktAuthenticationPolicy,
     BasicAuthAuthenticationPolicy as
@@ -30,7 +32,7 @@ class AuthenticationPolicy(object):
 
     def __init__(self, settings):
         def check(userid, password, request):
-            user = User.filter_by(id=userid).first()
+            user = User.filter_by(id=userid, disabled=False).first()
             if user is None or not (user.password == password):
                 return None
             else:
@@ -44,7 +46,7 @@ class AuthenticationPolicy(object):
                 http_only=True),
 
             BasicAuthenticationPolicy(
-                check=check, realm='NextGISWeb'),
+                check=check, realm=b'NextGISWeb'),
         )
 
     def authenticated_userid(self, request):
